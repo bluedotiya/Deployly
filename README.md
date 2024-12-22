@@ -10,7 +10,7 @@ Deployly is a mock platform built to demonstrate Secure CI/CD workflows.
 ## Features
 
 - **Basic HTTPS Content Serving**: It serves HTTPS content... sometimes.
-- **CI/CD Pipelines**: Automated builds that sometimes deploy to a mock Kubernetes cluster.
+- **CI/CD Pipelines**: Automated builds that sometimes deploy to a mock Azure cloud enviorment.
 - **Infinite Scalability**: In theory, not in practice.
 
 ---
