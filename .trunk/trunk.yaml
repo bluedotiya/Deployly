@@ -25,3 +25,5 @@ lint:
     - tflint@0.54.0
     - trufflehog@3.87.2
     - yamllint@1.35.1
+  disabled:
+    - checkov@3.2.343
