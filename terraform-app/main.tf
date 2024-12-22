@@ -42,7 +42,7 @@ resource "azurerm_virtual_network" "production_network" {
 resource "azurerm_subnet" "key_vault_subnet" {
   name                 = "key_vault_subnet"
   resource_group_name  = azurerm_resource_group.rg.name
-  virtual_network_name = azurerm_virtual_network.rg.name
+  virtual_network_name = azurerm_virtual_network.production_network.name
   address_prefixes     = ["10.0.2.0/24"]
 }
 
@@ -154,7 +154,7 @@ resource "azurerm_storage_account_customer_managed_key" "main_cmk" {
 resource "azurerm_subnet" "web_app_subnet" {
   name                 = "Web-App-Subnet"
   resource_group_name  = azurerm_resource_group.rg.name
-  virtual_network_name = azurerm_virtual_network.my_terraform_network.name
+  virtual_network_name = azurerm_virtual_network.production_network.name
   address_prefixes     = ["10.0.1.0/24"]
 }
 
@@ -173,7 +173,7 @@ resource "azurerm_network_interface" "webserver_nic1" {
 
   ip_configuration {
     name                          = "dhcp_web_app_lan"
-    subnet_id                     = azurerm_subnet.my_terraform_subnet.id
+    subnet_id                     = azurerm_subnet.web_app_subnet.id
     private_ip_address_allocation = "Dynamic"
   }
 }
