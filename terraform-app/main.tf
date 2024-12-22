@@ -263,6 +263,6 @@ resource "azurerm_linux_virtual_machine" "linux_vm" {
   }
 
   boot_diagnostics {
-    storage_account_uri = azurerm_storage_account.my_storage_account.primary_blob_endpoint
+    storage_account_uri = azurerm_storage_account.main_storage_account.primary_blob_endpoint
   }
 }
