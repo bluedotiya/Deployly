@@ -1,3 +1,26 @@
+
+# Creating Subnet for Vault managment 
+resource "azurerm_subnet" "key_vault_subnet" {
+  name                 = "managment_network"
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.rg.name
+  address_prefixes     = ["10.0.2.0/24"]
+}
+
+resource "azurerm_private_endpoint" "key_vault_private_endpoint" {
+  name                = "key-vault-private-endpoint"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  subnet_id           = azurerm_subnet.key_vault_subnet.id
+
+  private_service_connection {
+    name                           = "key-vault-managment"
+    is_manual_connection           = false
+    private_connection_resource_id = azurerm_key_vault.production_key_vault.id
+    subresource_names              = ["vault"]
+  }
+}
+
 resource "azurerm_key_vault" "production_key_vault" {
   name                          = "key-vault"
   location                      = azurerm_resource_group.rg.location
