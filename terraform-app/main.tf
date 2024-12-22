@@ -82,13 +82,14 @@ resource "random_id" "random_id" {
 
 # Create storage account for boot diagnostics
 resource "azurerm_storage_account" "my_storage_account" {
-  name                     = "diag${random_id.random_id.hex}"
-  location                 = azurerm_resource_group.rg.location
-  resource_group_name      = azurerm_resource_group.rg.name
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-  local_user_enabled       = false # Disabled local users in favor of Manganged identity if usecase arises
+  name                          = "diag${random_id.random_id.hex}"
+  location                      = azurerm_resource_group.rg.location
+  resource_group_name           = azurerm_resource_group.rg.name
+  account_tier                  = "Standard"
+  account_replication_type      = "LRS"
+  local_user_enabled            = false # Disabled local users in favor of Manganged identity if usecase arises
   public_network_access_enabled = false # CKV_AZURE_59 - Disable public access to storage account
+  min_tls_version               = "TLS1_2" # Explicitly mark TLS Version to 1.2
 }
 
 # Creating storage account queue retension and logging
