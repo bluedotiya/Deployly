@@ -36,4 +36,8 @@ jobs:
       uses: bridgecrewio/checkov-action@master
       with: 
         framework: terraform
-        soft_fail_on: INFO,LOW
+        # Soft fail on:
+          # INFO Severity 
+          # LOW Severity
+          # CKV_AZURE_33, resource test is deprecated, replaced with azurerm_storage_account_queue_properties resource
+        soft_fail_on: INFO,LOW,CKV_AZURE_33
