@@ -7,32 +7,8 @@ resource "azurerm_resource_group" "rg" {
   name     = random_pet.rg_name.id
 }
 
-# Create virtual network
-resource "azurerm_virtual_network" "my_terraform_network" {
-  name                = "Production-Virtual-Network"
-  address_space       = ["10.0.0.0/16"]
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-}
-
-# Create subnet
-resource "azurerm_subnet" "my_terraform_subnet" {
-  name                 = "Web-App-Subnet"
-  resource_group_name  = azurerm_resource_group.rg.name
-  virtual_network_name = azurerm_virtual_network.my_terraform_network.name
-  address_prefixes     = ["10.0.1.0/24"]
-}
-
-# Create public IPs
-resource "azurerm_public_ip" "my_terraform_public_ip" {
-  name                = "Web-App-Public-IP"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  allocation_method   = "Dynamic"
-}
-
 # Create Network Security Group and rule
-resource "azurerm_network_security_group" "my_terraform_nsg" {
+resource "azurerm_network_security_group" "general_https_nsg" {
   name                = "Resource-Group-NSG"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
@@ -50,23 +26,53 @@ resource "azurerm_network_security_group" "my_terraform_nsg" {
   }
 }
 
+# Create virtual network
+resource "azurerm_virtual_network" "production_network" {
+  name                = "Production-Virtual-Network"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
+# Create subnet
+resource "azurerm_subnet" "web_app_subnet" {
+  name                 = "Web-App-Subnet"
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.my_terraform_network.name
+  address_prefixes     = ["10.0.1.0/24"]
+}
+
+# association subnet with NGS 
+resource "azurerm_subnet_network_security_group_association" "subnet_ngs_association" {
+  subnet_id                 = azurerm_subnet.web_app_subnet.id
+  network_security_group_id = azurerm_network_security_group.general_https_nsg.id
+}
+
+
+# Create public IPs
+resource "azurerm_public_ip" "my_terraform_public_ip" {
+  name                = "Web-App-Public-IP"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  allocation_method   = "Dynamic"
+}
+
 # Create network interface
-resource "azurerm_network_interface" "my_terraform_nic" {
-  name                = "myNIC"
+resource "azurerm_network_interface" "webserver_nic1" {
+  name                = "NIC1"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
 
   ip_configuration {
-    name                          = "my_nic_configuration"
+    name                          = "dhcp_web_app_lan"
     subnet_id                     = azurerm_subnet.my_terraform_subnet.id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.my_terraform_public_ip.id
   }
 }
 
 # Connect the security group to the network interface
 resource "azurerm_network_interface_security_group_association" "example" {
-  network_interface_id      = azurerm_network_interface.my_terraform_nic.id
+  network_interface_id      = azurerm_network_interface.webserver_nic1.id
   network_security_group_id = azurerm_network_security_group.my_terraform_nsg.id
 }
 
@@ -81,7 +87,7 @@ resource "random_id" "random_id" {
 }
 
 # Create storage account for boot diagnostics
-resource "azurerm_storage_account" "my_storage_account" {
+resource "azurerm_storage_account" "main_storage_account" {
   name                            = "diag${random_id.random_id.hex}"
   location                        = azurerm_resource_group.rg.location
   resource_group_name             = azurerm_resource_group.rg.name
@@ -107,7 +113,7 @@ resource "azurerm_storage_account" "my_storage_account" {
 
 # Creating storage account queue retension and logging
 resource "azurerm_storage_account_queue_properties" "logging_properties" {
-  storage_account_id = azurerm_storage_account.my_storage_account.id
+  storage_account_id = azurerm_storage_account.main_storage_account.id
 
   logging {
     version               = "1.0"
@@ -129,16 +135,16 @@ resource "azurerm_storage_account_queue_properties" "logging_properties" {
 }
 
 # Create virtual machine
-resource "azurerm_linux_virtual_machine" "my_terraform_vm" {
-  name                       = "myVM"
+resource "azurerm_linux_virtual_machine" "linux_vm" {
+  name                       = "webserver"
   location                   = azurerm_resource_group.rg.location
   resource_group_name        = azurerm_resource_group.rg.name
-  network_interface_ids      = [azurerm_network_interface.my_terraform_nic.id]
+  network_interface_ids      = [azurerm_network_interface.webserver_nic1.id]
   size                       = "Standard_D2_v4"
   allow_extension_operations = false # CKV_AZURE_50 - Disabled extensions that can potetically introduce configuration changes post deployment
 
   os_disk {
-    name                 = "myOsDisk"
+    name                 = "Linux_OS_Disk"
     caching              = "ReadWrite"
     storage_account_type = "Standard_LRS"
   }
@@ -150,7 +156,7 @@ resource "azurerm_linux_virtual_machine" "my_terraform_vm" {
     version   = "latest"
   }
 
-  computer_name  = "hostname"
+  computer_name  = "webserver"
   admin_username = var.username
 
   admin_ssh_key {
