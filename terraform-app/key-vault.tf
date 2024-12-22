@@ -1,10 +1,16 @@
 
 # Creating Subnet for Vault managment 
 resource "azurerm_subnet" "key_vault_subnet" {
-  name                 = "managment_network"
+  name                 = "key_vault_subnet"
   resource_group_name  = azurerm_resource_group.rg.name
   virtual_network_name = azurerm_virtual_network.rg.name
   address_prefixes     = ["10.0.2.0/24"]
+}
+
+# association subnet with NGS 
+resource "azurerm_subnet_network_security_group_association" "key_vault_subnet_ngs_association" {
+  subnet_id                 = azurerm_subnet.key_vault_subnet.id
+  network_security_group_id = azurerm_network_security_group.general_https_nsg.id
 }
 
 resource "azurerm_private_endpoint" "key_vault_private_endpoint" {
