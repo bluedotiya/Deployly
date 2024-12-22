@@ -88,6 +88,7 @@ resource "azurerm_storage_account" "my_storage_account" {
   account_tier             = "Standard"
   account_replication_type = "LRS"
   local_user_enabled       = false # Disabled local users in favor of Manganged identity if usecase arises
+  public_network_access_enabled = false # CKV_AZURE_59 - Disable public access to storage account
 }
 
 # Create virtual machine
