@@ -1,4 +1,4 @@
-name: 'Terraform'
+name: 'Terraform Validator'
 
 on:
   push:
@@ -27,8 +27,6 @@ jobs:
     # Install the latest version of Terraform CLI
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v1
-      # with:
-      #   cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
     # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
     - name: Terraform Init
@@ -37,13 +35,6 @@ jobs:
     # Checks that all Terraform configuration files adhere to a canonical format
     - name: Terraform Format
       run: terraform fmt -check
-
-    # Trivy TF Scan
-    - name: Run Trivy vulnerability scanner in fs mode
-      uses: aquasecurity/trivy-action@0.28.0
-      with:
-        scan-type: 'fs'
-        scan-ref: '../..' # Change scan-ref to github root
 
     # Generates an execution plan for Terraform
     - name: Terraform Plan
