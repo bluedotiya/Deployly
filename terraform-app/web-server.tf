@@ -1,51 +1,3 @@
-resource "random_pet" "rg_name" {
-  prefix = var.resource_group_name_prefix
-}
-
-resource "azurerm_resource_group" "rg" {
-  location = var.resource_group_location
-  name     = random_pet.rg_name.id
-}
-
-# Key Vault creation, for encryption at rest
-data "azurerm_client_config" "current" {}
-
-
-resource "azurerm_key_vault" "production_key_vault" {
-  name                          = "key-vault"
-  location                      = azurerm_resource_group.rg.location
-  resource_group_name           = azurerm_resource_group.rg.name
-  tenant_id                     = data.azurerm_client_config.current.tenant_id
-  sku_name                      = "standard"
-  purge_protection_enabled      = true
-  soft_delete_retention_days    = 7
-  public_network_access_enabled = false # Disable public access for the key-vault
-  network_acls {
-    default_action              = "Deny"
-    bypass                      = "AzureServices"
-  }
-}
-
-resource "azurerm_key_vault_access_policy" "client" {
-  key_vault_id = azurerm_key_vault.production_key_vault.id
-  tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = data.azurerm_client_config.current.object_id
-
-  key_permissions    = ["Get", "Create", "Delete", "List", "Restore", "Recover", "UnwrapKey", "WrapKey", "Purge", "Encrypt", "Decrypt", "Sign", "Verify"]
-  secret_permissions = ["Get"]
-}
-
-resource "azurerm_key_vault_key" "vault_key" {
-  name         = "tfex-key"
-  key_vault_id = azurerm_key_vault.production_key_vault.id
-  key_type     = "RSA-HSM" # A bit overkill but this makes sure we are FIPS 140-3, useful when dealing with US Goverment or Cyeraware customers
-  key_size     = 2048
-  key_opts     = ["decrypt", "encrypt", "sign", "unwrapKey", "verify", "wrapKey"]
-
-  depends_on = [
-    azurerm_key_vault_access_policy.client
-  ]
-}
 
 # Create storage account for boot diagnostics
 resource "azurerm_storage_account" "main_storage_account" {
@@ -76,7 +28,6 @@ resource "azurerm_storage_account" "main_storage_account" {
   }
 }
 
-
 # Create CMK for main storage account
 resource "azurerm_storage_account_customer_managed_key" "main_cmk" {
   storage_account_id = azurerm_storage_account.main_storage_account.id
@@ -85,34 +36,7 @@ resource "azurerm_storage_account_customer_managed_key" "main_cmk" {
 }
 
 
-# Create Network Security Group and rule
-resource "azurerm_network_security_group" "general_https_nsg" {
-  name                = "Resource-Group-NSG"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-
-  security_rule {
-    name                       = "HTTPS"
-    priority                   = 1001
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "443"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
-}
-
-# Create virtual network
-resource "azurerm_virtual_network" "production_network" {
-  name                = "Production-Virtual-Network"
-  address_space       = ["10.0.0.0/16"]
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-}
-
-# Create subnet
+# Create webapp subnet
 resource "azurerm_subnet" "web_app_subnet" {
   name                 = "Web-App-Subnet"
   resource_group_name  = azurerm_resource_group.rg.name
@@ -126,14 +50,6 @@ resource "azurerm_subnet_network_security_group_association" "subnet_ngs_associa
   network_security_group_id = azurerm_network_security_group.general_https_nsg.id
 }
 
-
-# Create public IPs
-resource "azurerm_public_ip" "my_terraform_public_ip" {
-  name                = "Web-App-Public-IP"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  allocation_method   = "Dynamic"
-}
 
 # Create network interface
 resource "azurerm_network_interface" "webserver_nic1" {
@@ -149,9 +65,9 @@ resource "azurerm_network_interface" "webserver_nic1" {
 }
 
 # Connect the security group to the network interface
-resource "azurerm_network_interface_security_group_association" "example" {
+resource "azurerm_network_interface_security_group_association" "nic_ngs_associator" {
   network_interface_id      = azurerm_network_interface.webserver_nic1.id
-  network_security_group_id = azurerm_network_security_group.my_terraform_nsg.id
+  network_security_group_id = azurerm_network_security_group.general_https_nsg.id
 }
 
 # Generate random text for a unique storage account name
@@ -163,7 +79,6 @@ resource "random_id" "random_id" {
 
   byte_length = 8
 }
-
 
 # Creating PSC from Webserver to storage account blob storage
 resource "azurerm_private_endpoint" "vm_to_storage_account" {
