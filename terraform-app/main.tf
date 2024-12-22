@@ -87,6 +87,7 @@ resource "azurerm_storage_account" "my_storage_account" {
   resource_group_name      = azurerm_resource_group.rg.name
   account_tier             = "Standard"
   account_replication_type = "LRS"
+  # Disabled local users in favor of Manganged identity if usecase arises
   local_user_enabled       = false
 }
 
