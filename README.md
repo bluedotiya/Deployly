@@ -1,5 +1,5 @@
 # Deployly
-<img src="./assets/logo.webp" alt="Deployly" width="300" height="200">
+<img src="./assets/logo.png" alt="Deployly" width="300" height="200">
 
 **"The app that ups the apps!"**
 
