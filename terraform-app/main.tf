@@ -91,6 +91,29 @@ resource "azurerm_storage_account" "my_storage_account" {
   public_network_access_enabled = false # CKV_AZURE_59 - Disable public access to storage account
 }
 
+# Creating storage account queue retension and logging
+resource "azurerm_storage_account_queue_properties" "logging_properties" {
+  storage_account_id = azurerm_storage_account.my_storage_account.id
+
+  logging {
+    version               = "1.0"
+    delete                = true
+    read                  = true
+    write                 = true
+    retention_policy_days = 7
+  }
+
+  hour_metrics {
+    version               = "1.0"
+    retention_policy_days = 7
+  }
+
+  minute_metrics {
+    version               = "1.0"
+    retention_policy_days = 7
+  }
+}
+
 # Create virtual machine
 resource "azurerm_linux_virtual_machine" "my_terraform_vm" {
   name                  = "myVM"
