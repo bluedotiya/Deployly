@@ -1,5 +1,5 @@
 # Deployly
-![alt text](./assets/logo.webp "Deployly")
+![alt text](./assets/logo.webp =250x "Deployly")
 
 **"The app that ups the apps!"**
 
