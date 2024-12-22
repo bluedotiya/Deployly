@@ -12,13 +12,17 @@ data "azurerm_client_config" "current" {}
 
 
 resource "azurerm_key_vault" "production_key_vault" {
-  name                = "key-vault"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  tenant_id           = data.azurerm_client_config.current.tenant_id
-  sku_name            = "standard"
-
-  purge_protection_enabled = true
+  name                        = "key-vault"
+  location                    = azurerm_resource_group.rg.location
+  resource_group_name         = azurerm_resource_group.rg.name
+  tenant_id                   = data.azurerm_client_config.current.tenant_id
+  sku_name                    = "standard"
+  purge_protection_enabled    = true
+  soft_delete_retention_days  = 7
+  network_acls {
+    default_action            = "Deny"
+    bypass                    = "AzureServices"
+  }
 }
 
 resource "azurerm_key_vault_access_policy" "client" {
@@ -33,7 +37,7 @@ resource "azurerm_key_vault_access_policy" "client" {
 resource "azurerm_key_vault_key" "vault_key" {
   name         = "tfex-key"
   key_vault_id = azurerm_key_vault.production_key_vault.id
-  key_type     = "RSA"
+  key_type     = "RSA-HSM" # A bit overkill but this makes sure we are FIPS 140-3, useful when dealing with US Goverment or Cyeraware customers
   key_size     = 2048
   key_opts     = ["decrypt", "encrypt", "sign", "unwrapKey", "verify", "wrapKey"]
 
