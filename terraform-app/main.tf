@@ -257,6 +257,12 @@ resource "azurerm_linux_virtual_machine" "linux_vm" {
   computer_name  = "webserver"
   admin_username = var.username
 
+  admin_ssh_key {
+    username   = var.username
+    public_key = azapi_resource_action.ssh_public_key_gen.output.publicKey
+  }
+
+
   boot_diagnostics {
     storage_account_uri = azurerm_storage_account.main_storage_account.primary_blob_endpoint
   }
