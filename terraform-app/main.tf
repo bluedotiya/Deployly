@@ -7,6 +7,79 @@ resource "azurerm_resource_group" "rg" {
   name     = random_pet.rg_name.id
 }
 
+# Key Vault creation, for encryption at rest
+data "azurerm_client_config" "current" {}
+
+
+resource "azurerm_key_vault" "production_key_vault" {
+  name                = "key-vault"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  tenant_id           = data.azurerm_client_config.current.tenant_id
+  sku_name            = "standard"
+
+  purge_protection_enabled = true
+}
+
+resource "azurerm_key_vault_access_policy" "client" {
+  key_vault_id = azurerm_key_vault.production_key_vault.id
+  tenant_id    = data.azurerm_client_config.current.tenant_id
+  object_id    = data.azurerm_client_config.current.object_id
+
+  key_permissions    = ["Get", "Create", "Delete", "List", "Restore", "Recover", "UnwrapKey", "WrapKey", "Purge", "Encrypt", "Decrypt", "Sign", "Verify"]
+  secret_permissions = ["Get"]
+}
+
+resource "azurerm_key_vault_key" "vault_key" {
+  name         = "tfex-key"
+  key_vault_id = azurerm_key_vault.production_key_vault.id
+  key_type     = "RSA"
+  key_size     = 2048
+  key_opts     = ["decrypt", "encrypt", "sign", "unwrapKey", "verify", "wrapKey"]
+
+  depends_on = [
+    azurerm_key_vault_access_policy.client
+  ]
+}
+
+# Create storage account for boot diagnostics
+resource "azurerm_storage_account" "main_storage_account" {
+  name                            = "diag${random_id.random_id.hex}"
+  location                        = azurerm_resource_group.rg.location
+  resource_group_name             = azurerm_resource_group.rg.name
+  account_tier                    = "Standard"
+  account_replication_type        = "GRS" # Changed replication to Geo-redundant storage to ensure high availablity
+  local_user_enabled              = false # Disabled local users in favor of Manganged identity if usecase arises
+  public_network_access_enabled   = false # CKV_AZURE_59 - Disable public access to storage account
+  allow_nested_items_to_be_public = false # CKV_AZURE_190 - Block blob public access
+  shared_access_key_enabled       = false # CKV2_AZURE_40 - Check
+  min_tls_version                 = "TLS1_2" # Explicitly mark TLS Version to 1.2
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  sas_policy { # SAS Tokens experation date, after 90 days it will automatically be revoked
+    expiration_period = "90.00:00:00"
+    expiration_action = "Log"
+  }
+
+  blob_properties { # Keep deleted blobs for 7 days, protects againest accidental deletion
+    delete_retention_policy {
+      days = 7
+    }
+  }
+}
+
+
+# Create CMK for main storage account
+resource "azurerm_storage_account_customer_managed_key" "main_cmk" {
+  storage_account_id = azurerm_storage_account.main_storage_account.id
+  key_vault_id       = azurerm_key_vault.production_key_vault.id
+  key_name           = azurerm_key_vault_key.vault_key.name
+}
+
+
 # Create Network Security Group and rule
 resource "azurerm_network_security_group" "general_https_nsg" {
   name                = "Resource-Group-NSG"
@@ -86,28 +159,19 @@ resource "random_id" "random_id" {
   byte_length = 8
 }
 
-# Create storage account for boot diagnostics
-resource "azurerm_storage_account" "main_storage_account" {
-  name                            = "diag${random_id.random_id.hex}"
-  location                        = azurerm_resource_group.rg.location
-  resource_group_name             = azurerm_resource_group.rg.name
-  account_tier                    = "Standard"
-  account_replication_type        = "GRS" # Changed replication to Geo-redundant storage to ensure high availablity
-  local_user_enabled              = false # Disabled local users in favor of Manganged identity if usecase arises
-  public_network_access_enabled   = false # CKV_AZURE_59 - Disable public access to storage account
-  allow_nested_items_to_be_public = false # CKV_AZURE_190 - Block blob public access
-  shared_access_key_enabled       = false # CKV2_AZURE_40 - Check
-  min_tls_version                 = "TLS1_2" # Explicitly mark TLS Version to 1.2
 
-  sas_policy { # SAS Tokens experation date, after 90 days it will automatically be revoked
-    expiration_period = "90.00:00:00"
-    expiration_action = "Log"
-  }
+# Creating PSC from Webserver to storage account blob storage
+resource "azurerm_private_endpoint" "vm_to_storage_account" {
+  name                 = "webserver_to_blob_storage_account"
+  location             = azurerm_resource_group.rg.location
+  resource_group_name  = azurerm_resource_group.rg.name
+  subnet_id            = azurerm_subnet.web_app_subnet.id
 
-  blob_properties { # Keep deleted blobs for 7 days, protects againest accidental deletion
-    delete_retention_policy {
-      days = 7
-    }
+  private_service_connection {
+    name                           = "webapp_psc"
+    is_manual_connection           = false
+    private_connection_resource_id = azurerm_storage_account.main_storage_account.id
+    subresource_names              = ["blob"]
   }
 }
 
