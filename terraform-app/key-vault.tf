@@ -28,6 +28,7 @@ resource "azurerm_key_vault_key" "vault_key" {
   key_type     = "RSA-HSM" # A bit overkill but this makes sure we are FIPS 140-3, useful when dealing with US Goverment or Cyeraware customers
   key_size     = 2048
   key_opts     = ["decrypt", "encrypt", "sign", "unwrapKey", "verify", "wrapKey"]
+  expiration_date = "P90D"
 
   rotation_policy {
     automatic {
