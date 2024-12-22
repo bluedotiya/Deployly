@@ -7,7 +7,7 @@ on:
   pull_request:
 
 jobs:
-  test:
+  Scanner:
     runs-on: ubuntu-latest
     permissions:
       contents: read
