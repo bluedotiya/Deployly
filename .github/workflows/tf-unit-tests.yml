@@ -1,4 +1,4 @@
-name: 'Terraform Unit Tests'
+name: Terraform Unit Tests
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   terraform-unit-tests:
-    name: 'Terraform Unit Tests'
+    name: Terraform Unit Tests
     runs-on: ubuntu-24.04
     
     steps:
