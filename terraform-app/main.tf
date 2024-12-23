@@ -104,63 +104,83 @@ resource "azurerm_private_endpoint" "vm_to_storage_account" {
   }
 }
 
-# Create Public Load Balancer
+# Create Public Application Gateway
+# Local block for variables reusage
+locals {
+  backend_address_pool_name      = "${azurerm_virtual_network.production_network.name}-beap"
+  frontend_port_name             = "${azurerm_virtual_network.production_network.name}-feport"
+  frontend_ip_configuration_name = "${azurerm_virtual_network.production_network.name}-feip"
+  http_setting_name              = "${azurerm_virtual_network.production_network.name}-be-htst"
+  listener_name                  = "${azurerm_virtual_network.production_network.name}-httplstn"
+  request_routing_rule_name      = "${azurerm_virtual_network.production_network.name}-rqrt"
+  redirect_configuration_name    = "${azurerm_virtual_network.production_network.name}-rdrcfg"
+}
 
 # Create Public IP
-resource "azurerm_public_ip" "lb_public_ip" {
-  count               = 2
-  name                = "${var.public_ip_name}-${count.index}"
+resource "azurerm_public_ip" "app_gateway_public_ip" {
+  name                = var.public_ip_name
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   allocation_method   = "Static"
   sku                 = "Standard"
 }
 
-resource "azurerm_lb" "webserver_lb" {
-  name                = "lb-01"
-  location            = azurerm_resource_group.rg.location
+# Create application gateway
+resource "azurerm_application_gateway" "network" {
+  name                = "webserver-app-gateway"
   resource_group_name = azurerm_resource_group.rg.name
-  sku                 = "Standard"
+  location            = azurerm_resource_group.rg.location
+
+  sku {
+    name     = "WAF_Medium"
+    tier     = "WAF_v2"
+    capacity = 2
+  }
+
+  gateway_ip_configuration {
+    name      = "gateway-webapp-ip-configuration"
+    subnet_id = azurerm_subnet.web_app_subnet.id
+  }
+
+  frontend_port {
+    name = local.frontend_port_name
+    port = 443
+  }
 
   frontend_ip_configuration {
-    name                 = "${var.public_ip_name}-1"
-    public_ip_address_id = azurerm_public_ip.lb_public_ip[0].id
+    name                 = local.frontend_ip_configuration_name
+    public_ip_address_id = azurerm_public_ip.app_gateway_public_ip.id
   }
-}
 
-resource "azurerm_lb_backend_address_pool" "lb_backend_pool" {
-  loadbalancer_id      = azurerm_lb.webserver_lb.id
-  name                 = "backend_pool"
-}
-
-resource "azurerm_lb_probe" "interna_http_probe" {
-  loadbalancer_id     = azurerm_lb.webserver_lb.id
-  protocol            = "Http"
-  name                = "Http probe"
-  port                = 80
-}
-
-resource "azurerm_lb_rule" "lb_ruleset" {
-  loadbalancer_id                = azurerm_lb.webserver_lb.id
-  name                           = "web-application-rule"
-  protocol                       = "Tcp"
-  frontend_port                  = 443
-  backend_port                   = 80
-  disable_outbound_snat          = true # Seperation of Inbound & Outbound to different Public IPs
-  frontend_ip_configuration_name = "${var.public_ip_name}-1"
-  probe_id                       = azurerm_lb_probe.interna_http_probe.id
-  backend_address_pool_ids       = [azurerm_lb_backend_address_pool.lb_backend_pool.id]
-}
-
-resource "azurerm_lb_outbound_rule" "lb_outbound_ruleset" {
-  name                    = "web-application-outbound-rule"
-  loadbalancer_id         = azurerm_lb.webserver_lb.id
-  protocol                = "Tcp"
-  backend_address_pool_id = azurerm_lb_backend_address_pool.lb_backend_pool.id
-
-  frontend_ip_configuration {
-    name = "${var.public_ip_name}-2"
+  backend_address_pool {
+    name = local.backend_address_pool_name
   }
+
+  backend_http_settings {
+    name                  = local.http_setting_name
+    cookie_based_affinity = "Disabled"
+    path                  = "/my-beautiful-frontend/"
+    port                  = 80
+    protocol              = "Http"
+    request_timeout       = 60
+  }
+
+  http_listener {
+    name                           = local.listener_name
+    frontend_ip_configuration_name = local.frontend_ip_configuration_name
+    frontend_port_name             = local.frontend_port_name
+    protocol                       = "Http"
+  }
+
+  request_routing_rule {
+    name                       = local.request_routing_rule_name
+    priority                   = 9
+    rule_type                  = "Basic"
+    http_listener_name         = local.listener_name
+    backend_address_pool_name  = local.backend_address_pool_name
+    backend_http_settings_name = local.http_setting_name
+  }
+
 }
 
 ## Storage Configuration ##
@@ -249,7 +269,7 @@ resource "azurerm_linux_virtual_machine" "linux_vm" {
 
   admin_ssh_key {
     username   = var.username
-    public_key = azapi_resource_action.ssh_public_key_gen.output.publicKey
+    public_key = file("~/.ssh/id_rsa.pub")
   }
 
 
