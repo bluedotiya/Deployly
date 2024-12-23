@@ -1,3 +1,5 @@
+## Name declaration ##
+
 resource "random_pet" "rg_name" {
   prefix = var.resource_group_name_prefix
 }
@@ -7,9 +9,33 @@ resource "azurerm_resource_group" "rg" {
   name     = random_pet.rg_name.id
 }
 
-# Key Vault creation, for encryption at rest
-data "azurerm_client_config" "current" {}
+# Generate random text for a unique storage account name
+resource "random_id" "random_id" {
+  keepers = {
+    # Generate a new ID only when a new resource group is defined
+    resource_group = azurerm_resource_group.rg.name
+  }
 
+  byte_length = 8
+}
+
+## Networking Configuration ##
+
+# Create virtual network
+resource "azurerm_virtual_network" "production_network" {
+  name                = "Production-Virtual-Network"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
+# Create webapp subnet
+resource "azurerm_subnet" "web_app_subnet" {
+  name                 = "Web-App-Subnet"
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.production_network.name
+  address_prefixes     = ["10.0.1.0/24"]
+}
 
 # Create Network Security Group and rule
 resource "azurerm_network_security_group" "general_https_nsg" {
@@ -30,87 +56,50 @@ resource "azurerm_network_security_group" "general_https_nsg" {
   }
 }
 
-# Create virtual network
-resource "azurerm_virtual_network" "production_network" {
-  name                = "Production-Virtual-Network"
-  address_space       = ["10.0.0.0/16"]
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-}
-
-# Creating Subnet for Vault managment 
-resource "azurerm_subnet" "key_vault_subnet" {
-  name                 = "key_vault_subnet"
-  resource_group_name  = azurerm_resource_group.rg.name
-  virtual_network_name = azurerm_virtual_network.production_network.name
-  address_prefixes     = ["10.0.2.0/24"]
-}
-
 # association subnet with NGS 
-resource "azurerm_subnet_network_security_group_association" "key_vault_subnet_ngs_association" {
-  subnet_id                 = azurerm_subnet.key_vault_subnet.id
+resource "azurerm_subnet_network_security_group_association" "subnet_ngs_association" {
+  subnet_id                 = azurerm_subnet.web_app_subnet.id
   network_security_group_id = azurerm_network_security_group.general_https_nsg.id
 }
 
-resource "azurerm_private_endpoint" "key_vault_private_endpoint" {
-  name                = "key-vault-private-endpoint"
+
+# Create network interface
+resource "azurerm_network_interface" "webserver_nic1" {
+  name                = "NIC1"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
-  subnet_id           = azurerm_subnet.key_vault_subnet.id
+
+  ip_configuration {
+    name                          = "dhcp_web_app_lan"
+    subnet_id                     = azurerm_subnet.web_app_subnet.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+# Connect the security group to the network interface
+resource "azurerm_network_interface_security_group_association" "nic_ngs_associator" {
+  network_interface_id      = azurerm_network_interface.webserver_nic1.id
+  network_security_group_id = azurerm_network_security_group.general_https_nsg.id
+}
+
+# Creating PSC from Webserver to storage account blob storage
+resource "azurerm_private_endpoint" "vm_to_storage_account" {
+  name                 = "webserver_blob_storage_account_PSC"
+  location             = azurerm_resource_group.rg.location
+  resource_group_name  = azurerm_resource_group.rg.name
+  subnet_id            = azurerm_subnet.web_app_subnet.id
 
   private_service_connection {
-    name                           = "key-vault-managment"
+    name                           = "webapp_psc"
     is_manual_connection           = false
-    private_connection_resource_id = azurerm_key_vault.production_key_vault.id
-    subresource_names              = ["vault"]
+    private_connection_resource_id = azurerm_storage_account.main_storage_account.id
+    subresource_names              = ["blob"]
   }
 }
 
-resource "azurerm_key_vault" "production_key_vault" {
-  name                          = "key-vault"
-  location                      = azurerm_resource_group.rg.location
-  resource_group_name           = azurerm_resource_group.rg.name
-  tenant_id                     = data.azurerm_client_config.current.tenant_id
-  sku_name                      = "standard"
-  purge_protection_enabled      = true
-  soft_delete_retention_days    = 7
-  public_network_access_enabled = false # Disable public access for the key-vault
-  network_acls {
-    default_action              = "Deny"
-    bypass                      = "AzureServices"
-  }
-}
-
-resource "azurerm_key_vault_access_policy" "client" {
-  key_vault_id = azurerm_key_vault.production_key_vault.id
-  tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = data.azurerm_client_config.current.object_id
-
-  key_permissions    = ["Get", "Create", "Delete", "List", "Restore", "Recover", "UnwrapKey", "WrapKey", "Purge", "Encrypt", "Decrypt", "Sign", "Verify"]
-  secret_permissions = ["Get"]
-}
-
-resource "azurerm_key_vault_key" "vault_key" {
-  name         = "tfex-key"
-  key_vault_id = azurerm_key_vault.production_key_vault.id
-  key_type     = "RSA-HSM" # A bit overkill but this makes sure we are FIPS 140-3, useful when dealing with US Goverment or Cyeraware customers
-  key_size     = 2048
-  key_opts     = ["decrypt", "encrypt", "sign", "unwrapKey", "verify", "wrapKey"]
-
-  rotation_policy {
-    automatic {
-      time_before_expiry = "P30D" # Rotate key 30 days before expirey 
-    }
-
-    expire_after         = "P90D" # Expire after 90 days
-    notify_before_expiry = "P29D" # Notify 29 days before expire
-  }
 
 
-  depends_on = [
-    azurerm_key_vault_access_policy.client
-  ]
-}
+## Storage Configuration ##
 
 
 # Create storage account for boot diagnostics
@@ -142,73 +131,6 @@ resource "azurerm_storage_account" "main_storage_account" {
   }
 }
 
-# Create CMK for main storage account
-resource "azurerm_storage_account_customer_managed_key" "main_cmk" {
-  storage_account_id = azurerm_storage_account.main_storage_account.id
-  key_vault_id       = azurerm_key_vault.production_key_vault.id
-  key_name           = azurerm_key_vault_key.vault_key.name
-}
-
-
-# Create webapp subnet
-resource "azurerm_subnet" "web_app_subnet" {
-  name                 = "Web-App-Subnet"
-  resource_group_name  = azurerm_resource_group.rg.name
-  virtual_network_name = azurerm_virtual_network.production_network.name
-  address_prefixes     = ["10.0.1.0/24"]
-}
-
-# association subnet with NGS 
-resource "azurerm_subnet_network_security_group_association" "subnet_ngs_association" {
-  subnet_id                 = azurerm_subnet.web_app_subnet.id
-  network_security_group_id = azurerm_network_security_group.general_https_nsg.id
-}
-
-
-# Create network interface
-resource "azurerm_network_interface" "webserver_nic1" {
-  name                = "NIC1"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-
-  ip_configuration {
-    name                          = "dhcp_web_app_lan"
-    subnet_id                     = azurerm_subnet.web_app_subnet.id
-    private_ip_address_allocation = "Dynamic"
-  }
-}
-
-# Connect the security group to the network interface
-resource "azurerm_network_interface_security_group_association" "nic_ngs_associator" {
-  network_interface_id      = azurerm_network_interface.webserver_nic1.id
-  network_security_group_id = azurerm_network_security_group.general_https_nsg.id
-}
-
-# Generate random text for a unique storage account name
-resource "random_id" "random_id" {
-  keepers = {
-    # Generate a new ID only when a new resource group is defined
-    resource_group = azurerm_resource_group.rg.name
-  }
-
-  byte_length = 8
-}
-
-# Creating PSC from Webserver to storage account blob storage
-resource "azurerm_private_endpoint" "vm_to_storage_account" {
-  name                 = "webserver_to_blob_storage_account"
-  location             = azurerm_resource_group.rg.location
-  resource_group_name  = azurerm_resource_group.rg.name
-  subnet_id            = azurerm_subnet.web_app_subnet.id
-
-  private_service_connection {
-    name                           = "webapp_psc"
-    is_manual_connection           = false
-    private_connection_resource_id = azurerm_storage_account.main_storage_account.id
-    subresource_names              = ["blob"]
-  }
-}
-
 # Creating storage account queue retension and logging
 resource "azurerm_storage_account_queue_properties" "logging_properties" {
   storage_account_id = azurerm_storage_account.main_storage_account.id
@@ -231,6 +153,10 @@ resource "azurerm_storage_account_queue_properties" "logging_properties" {
     retention_policy_days = 7
   }
 }
+
+
+
+## Virutal machine configuration ##
 
 # Create virtual machine
 resource "azurerm_linux_virtual_machine" "linux_vm" {
