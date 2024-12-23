@@ -76,6 +76,13 @@ resource "azurerm_network_interface" "webserver_nic1" {
   }
 }
 
+# Associate Network Interface to the Backend Pool of the Load Balancer
+resource "azurerm_network_interface_backend_address_pool_association" "nic_lb_pool" {
+  network_interface_id    = azurerm_network_interface.webserver_nic1.id
+  ip_configuration_name   = "ipconfig-1"
+  backend_address_pool_id = azurerm_lb_backend_address_pool.lb_backend_pool.id
+}
+
 # Connect the security group to the network interface
 resource "azurerm_network_interface_security_group_association" "nic_ngs_associator" {
   network_interface_id      = azurerm_network_interface.webserver_nic1.id
@@ -97,7 +104,64 @@ resource "azurerm_private_endpoint" "vm_to_storage_account" {
   }
 }
 
+# Create Public Load Balancer
 
+# Create Public IP
+resource "azurerm_public_ip" "lb_public_ip" {
+  count               = 2
+  name                = "${var.public_ip_name}-${count.index}"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+}
+
+resource "azurerm_lb" "webserver_lb" {
+  name                = "lb-01"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  sku                 = "Standard"
+
+  frontend_ip_configuration {
+    name                 = "${var.public_ip_name}-1"
+    public_ip_address_id = azurerm_public_ip.lb_public_ip[0].id
+  }
+}
+
+resource "azurerm_lb_backend_address_pool" "lb_backend_pool" {
+  loadbalancer_id      = azurerm_lb.webserver_lb.id
+  name                 = "backend_pool"
+}
+
+resource "azurerm_lb_probe" "interna_http_probe" {
+  loadbalancer_id     = azurerm_lb.webserver_lb.id
+  protocol            = "Http"
+  name                = "Http probe"
+  port                = 80
+}
+
+resource "azurerm_lb_rule" "lb_ruleset" {
+  loadbalancer_id                = azurerm_lb.webserver_lb.id
+  name                           = "web-application-rule"
+  protocol                       = "Tcp"
+  frontend_port                  = 443
+  backend_port                   = 80
+  disable_outbound_snat          = true # Seperation of Inbound & Outbound to different Public IPs
+  frontend_ip_configuration_name = "${var.public_ip_name}-1"
+  probe_id                       = azurerm_lb_probe.interna_http_probe.id
+  backend_address_pool_ids       = [azurerm_lb_backend_address_pool.lb_backend_pool.id]
+}
+
+resource "azurerm_lb_outbound_rule" "lb_outbound_ruleset" {
+  name                    = "web-application-outbound-rule"
+  loadbalancer_id         = azurerm_lb.webserver_lb.id
+  protocol                = "Tcp"
+  backend_address_pool_id = azurerm_lb_backend_address_pool.lb_backend_pool.id
+
+  frontend_ip_configuration {
+    name = "${var.public_ip_name}-2"
+  }
+}
 
 ## Storage Configuration ##
 

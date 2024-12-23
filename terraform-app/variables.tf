@@ -15,3 +15,9 @@ variable "username" {
   description = "The username for the local account that will be created on the new VM."
   default     = "azureadmin"
 }
+
+variable public_ip_name {
+  type        = string
+  default     = "public-ip-01"
+  description = "Name of the Public IP."
+}
