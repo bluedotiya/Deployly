@@ -13,7 +13,7 @@ data "azurerm_client_config" "current" {}
 
 # Create Network Security Group and rule
 resource "azurerm_network_security_group" "general_https_nsg" {
-  name                = "Resource-Group-NSG"
+  name                = "Resource-Group-NSG-Internal"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
 
@@ -25,7 +25,7 @@ resource "azurerm_network_security_group" "general_https_nsg" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "443"
-    source_address_prefix      = "*"
+    source_address_prefix      = "10.0.0.0/16"
     destination_address_prefix = "*"
   }
 }
