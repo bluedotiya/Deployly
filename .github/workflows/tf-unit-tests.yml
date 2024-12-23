@@ -41,4 +41,5 @@ jobs:
           # LOW Severity
           # CKV_AZURE_33: resource test is deprecated, replaced with azurerm_storage_account_queue_properties resource
           # CKV_AZURE_40: Ignore explicit experation date, key rotation and experation are managed automatically in the current config
-        soft_fail_on: INFO,LOW,CKV_AZURE_33,CKV_AZURE_40
+          # CKV2_AZURE_1: Storage for boot diagnostics is not considered critical data
+        soft_fail_on: INFO,LOW,CKV_AZURE_33,CKV_AZURE_40,CKV2_AZURE_1
