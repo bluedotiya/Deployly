@@ -5,5 +5,3 @@
 4. Make local ssh public key & push it to the VM
 5. Create a tunnel to Ansible to run on & configure the VM
 
-# Ansible
-1. Configure an HTTP apache server

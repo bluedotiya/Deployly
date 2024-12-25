@@ -238,7 +238,7 @@ resource "azurerm_application_gateway" "network" {
     name                           = local.listener_name
     frontend_ip_configuration_name = local.frontend_ip_configuration_name
     frontend_port_name             = local.frontend_port_name
-    protocol                       = "Http"
+    protocol                       = "Https"
   }
 
   request_routing_rule {
@@ -253,7 +253,6 @@ resource "azurerm_application_gateway" "network" {
 }
 
 ## Storage Configuration ##
-
 
 # Create storage account for boot diagnostics & blob storage
 resource "azurerm_storage_account" "main_storage_account" {
@@ -284,7 +283,7 @@ resource "azurerm_storage_account" "main_storage_account" {
   }
 }
 
-# Create CMK for main storage account
+# Tags the CMK for main storage account
 resource "azurerm_storage_account_customer_managed_key" "main_cmk" {
   storage_account_id = azurerm_storage_account.main_storage_account.id
   key_vault_id       = azurerm_key_vault.production_key_vault.id
@@ -313,7 +312,6 @@ resource "azurerm_storage_account_queue_properties" "logging_properties" {
     retention_policy_days = 7
   }
 }
-
 
 
 ## Virutal machine configuration ##
@@ -345,7 +343,7 @@ resource "azurerm_linux_virtual_machine" "linux_vm" {
 
   admin_ssh_key {
     username   = var.username
-    public_key = file("~/.ssh/id_rsa.pub")
+    public_key = file("~/.ssh/id_rsa.pub") # This key will be later used by Ansible for configuration management
   }
 
 
