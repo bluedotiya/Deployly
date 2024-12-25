@@ -39,4 +39,5 @@ Deployly is a mock platform built to demonstrate Secure CI/CD workflows.
 1. Application gateway Resource that do the SSL offload & WAF
 2. VM that runs apache2 as a webserver on port80 on internal subnet
 3. Storage account that uses object storage to store relevent artificats and data
+4. CMK & Key vault for blob storage storage
 
