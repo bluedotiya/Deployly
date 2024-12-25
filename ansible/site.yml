@@ -1,0 +1,5 @@
+# Run apache2 role on production servers
+
+- hosts: webapp1
+  roles:
+    - apache2

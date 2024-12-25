@@ -18,5 +18,8 @@ terraform {
 }
 
 provider "azurerm" {
-  features {}
+  features {
+   }
+   # This because we disabled the shared_access_key in the storage account
+   storage_use_azuread = true
 }

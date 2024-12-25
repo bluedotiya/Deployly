@@ -30,11 +30,13 @@ resource "azurerm_subnet" "key_vault_subnet" {
   virtual_network_name = azurerm_virtual_network.rg.name
   address_prefixes     = ["10.0.2.0/24"]
 }
-# association subnet with NGS 
-resource "azurerm_subnet_network_security_group_association" "key_vault_subnet_ngs_association" {
+
+# association subnet with NSG
+resource "azurerm_subnet_network_security_group_association" "key_vault_subnet_nsg_association" {
   subnet_id                 = azurerm_subnet.key_vault_subnet.id
   network_security_group_id = azurerm_network_security_group.general_https_nsg.id
 }
+
 resource "azurerm_private_endpoint" "key_vault_private_endpoint" {
   name                = "key-vault-private-endpoint"
   location            = azurerm_resource_group.rg.location
@@ -74,7 +76,7 @@ resource "azurerm_key_vault_key" "vault_key" {
   key_type     = "RSA-HSM" # A bit overkill but this makes sure we are FIPS 140-3, useful when dealing with US Goverment or Cyeraware customers
   key_size     = 2048
   key_opts     = ["decrypt", "encrypt", "sign", "unwrapKey", "verify", "wrapKey"]
-  expiration_date = "P90D"
+
   rotation_policy {
     automatic {
       time_before_expiry = "P30D" # Rotate key 30 days before expirey 
@@ -125,8 +127,8 @@ resource "azurerm_network_security_group" "general_https_nsg" {
   }
 }
 
-# association subnet with NGS 
-resource "azurerm_subnet_network_security_group_association" "subnet_ngs_association" {
+# association subnet with nsg 
+resource "azurerm_subnet_network_security_group_association" "subnet_nsg_association" {
   subnet_id                 = azurerm_subnet.web_app_subnet.id
   network_security_group_id = azurerm_network_security_group.general_https_nsg.id
 }
@@ -153,7 +155,7 @@ resource "azurerm_network_interface_backend_address_pool_association" "nic_lb_po
 }
 
 # Connect the security group to the network interface
-resource "azurerm_network_interface_security_group_association" "nic_ngs_associator" {
+resource "azurerm_network_interface_security_group_association" "nic_nsg_associator" {
   network_interface_id      = azurerm_network_interface.webserver_nic1.id
   network_security_group_id = azurerm_network_security_group.general_https_nsg.id
 }
@@ -190,7 +192,7 @@ resource "azurerm_public_ip" "app_gateway_public_ip" {
   name                = var.public_ip_name
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
-  allocation_method   = "Static"
+  allocation_method   = "Static" # Static IP assignment from Azure
   sku                 = "Standard"
 }
 
@@ -227,7 +229,7 @@ resource "azurerm_application_gateway" "network" {
 
   backend_http_settings {
     name                  = local.http_setting_name
-    cookie_based_affinity = "Disabled"
+    cookie_based_affinity = "Disabled" # Only one server is needed for this configuration
     path                  = "/my-beautiful-frontend/"
     port                  = 80
     protocol              = "Http"
@@ -264,16 +266,11 @@ resource "azurerm_storage_account" "main_storage_account" {
   local_user_enabled              = false # Disabled local users in favor of Manganged identity if usecase arises
   public_network_access_enabled   = false # CKV_AZURE_59 - Disable public access to storage account
   allow_nested_items_to_be_public = false # CKV_AZURE_190 - Block blob public access
-  shared_access_key_enabled       = false # CKV2_AZURE_40 - Check
+  shared_access_key_enabled       = false # CKV2_AZURE_40 - Ensure storage account is not configured with Shared Key authorization, meaning only Azure AD auth is allowed
   min_tls_version                 = "TLS1_2" # Explicitly mark TLS Version to 1.2
 
   identity {
     type = "SystemAssigned"
-  }
-
-  sas_policy { # SAS Tokens experation date, after 90 days it will automatically be revoked
-    expiration_period = "90.00:00:00"
-    expiration_action = "Log"
   }
 
   blob_properties { # Keep deleted blobs for 7 days, protects againest accidental deletion
@@ -289,30 +286,6 @@ resource "azurerm_storage_account_customer_managed_key" "main_cmk" {
   key_vault_id       = azurerm_key_vault.production_key_vault.id
   key_name           = azurerm_key_vault_key.vault_key.name
 }
-
-# Creating storage account queue retension and logging
-resource "azurerm_storage_account_queue_properties" "logging_properties" {
-  storage_account_id = azurerm_storage_account.main_storage_account.id
-
-  logging {
-    version               = "1.0"
-    delete                = true
-    read                  = true
-    write                 = true
-    retention_policy_days = 7
-  }
-
-  hour_metrics {
-    version               = "1.0"
-    retention_policy_days = 7
-  }
-
-  minute_metrics {
-    version               = "1.0"
-    retention_policy_days = 7
-  }
-}
-
 
 ## Virutal machine configuration ##
 
