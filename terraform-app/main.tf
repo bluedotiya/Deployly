@@ -185,6 +185,7 @@ locals {
   listener_name                  = "${azurerm_virtual_network.production_network.name}-httplstn"
   request_routing_rule_name      = "${azurerm_virtual_network.production_network.name}-rqrt"
   redirect_configuration_name    = "${azurerm_virtual_network.production_network.name}-rdrcfg"
+  probe_name                     = "${azurerm_virtual_network.production_network.name}-prb"
 }
 
 # Create Public IP
@@ -202,6 +203,12 @@ resource "azurerm_application_gateway" "network" {
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
 
+  sku {
+    name     = "WAF_Medium"
+    tier     = "WAF_v2"
+    capacity = 2
+  }
+
   ssl_policy {
     policy_name = "AppGwSslPolicy20220101S" # Enforce TLS 1.2
     policy_type        = "Predefined"
@@ -214,10 +221,17 @@ resource "azurerm_application_gateway" "network" {
     # OWASP 3.2 https://learn.microsoft.com/en-us/azure/web-application-firewall/ag/application-gateway-crs-rulegroups-rules?tabs=owasp32#tabpanel_1_owasp32
   }
 
-  sku {
-    name     = "WAF_Medium"
-    tier     = "WAF_v2"
-    capacity = 2
+  probe {
+    name     = local.probe_name
+    protocol = "Http"
+    path     = "/index.html"
+    interval = 30
+    timeout  = 303
+    unhealthy_threshold = 3
+    match {
+      body        = "Hi Mom"
+      status_code = ["200"]
+    }
   }
 
   gateway_ip_configuration {
@@ -242,10 +256,11 @@ resource "azurerm_application_gateway" "network" {
   backend_http_settings {
     name                  = local.http_setting_name
     cookie_based_affinity = "Disabled" # Only one server is needed for this configuration
-    path                  = "/my-beautiful-frontend/"
+    path                  = "/index.html"
     port                  = 80
     protocol              = "Http"
     request_timeout       = 60
+    probe_name            = local.probe_name
   }
 
   http_listener {

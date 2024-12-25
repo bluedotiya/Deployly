@@ -14,3 +14,11 @@
     host: localhost
     port: "{{ default_listen_port }}"
 
+- name: Copy the HTML file to the apache2 document root
+  ansible.builtin.copy:
+    src: beautiful_frontend.html
+    dest: /var/www/html/index.html
+    owner: root
+    group: root
+    mode: 0644
+    force: true
