@@ -202,6 +202,18 @@ resource "azurerm_application_gateway" "network" {
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
 
+  ssl_policy {
+    policy_name = "AppGwSslPolicy20220101S" # Enforce TLS 1.2
+    policy_type        = "Predefined"
+  }
+
+  waf_configuration {
+    enabled = true
+    firewall_mode = "Prevention" # Active WAF mode
+    rule_set_version = 3.2
+    # OWASP 3.2 https://learn.microsoft.com/en-us/azure/web-application-firewall/ag/application-gateway-crs-rulegroups-rules?tabs=owasp32#tabpanel_1_owasp32
+  }
+
   sku {
     name     = "WAF_Medium"
     tier     = "WAF_v2"
@@ -268,6 +280,7 @@ resource "azurerm_storage_account" "main_storage_account" {
   allow_nested_items_to_be_public = false # CKV_AZURE_190 - Block blob public access
   shared_access_key_enabled       = false # CKV2_AZURE_40 - Ensure storage account is not configured with Shared Key authorization, meaning only Azure AD auth is allowed
   min_tls_version                 = "TLS1_2" # Explicitly mark TLS Version to 1.2
+  account_kind                    = "BlobStorage" # Limit the storage account to only blob storage
 
   identity {
     type = "SystemAssigned"
