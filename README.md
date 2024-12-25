@@ -19,7 +19,8 @@ Deployly is a mock platform built to demonstrate Secure CI/CD workflows.
 ## Tech Stack
 
 - **CI/CD**: GitHub Actions
-- **Scripting**: Bash/Python for automation
+- **Provisioning**: Terraform
+- **Configuration**: Ansible
 - **Version Control**: Git
 
 ---
@@ -27,14 +28,15 @@ Deployly is a mock platform built to demonstrate Secure CI/CD workflows.
 ## Example Workflow
 
 1. Developer pushes code to the repository.
-2. GitHub Actions trigger the CI/CD pipeline.
-3. Docker builds a container image... maybe.
-4. Kubernetes YAML files are applied to a mock cluster.
-5. Notifications simulate build and deploy results (randomly). 🎉
+2. GitHub Actions trigger the CI/CD pipeline, Run static analysis using Checkov.
+3. Infrastructure is deployed to azure using terraform.
+4. Ansible connects to the webserver to configure it.
 
 ---
 
-## Future Enhancements
+## System design overview
 
-- Real-time deployment monitoring (if it works).
-- Enhanced scalability testing (in our dreams).
+1. Application gateway Resource that do the SSL offload & WAF
+2. VM that runs apache2 as a webserver on port80 on internal subnet
+3. Storage account that uses object storage to store relevent artificats and data
+
