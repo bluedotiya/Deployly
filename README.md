@@ -57,6 +57,7 @@ Deployly is a mock platform built to demonstrate Secure CI/CD workflows.
 3.  Network NGS Policy to allow only explict traffic that is defined - to prevent data exfiltration 
 4.  Application gateway seperation between SNAT & DNAT - to prevent reconnaissance
 5.  Creatong private service connection between sensitive locations: Key vault, Storage account.
+6.  Application Gateway WAF for block advance Web attack thrown at our HTTP server - [Ruleset ref](https://learn.microsoft.com/en-us/azure/web-application-firewall/ag/application-gateway-crs-rulegroups-rules?tabs=owasp32#owasp32)
 
 ### Managed identity
 1.  Prevention of local users of storage account - this leave managed identify users the only possible option - Prevents using unmanaged users
