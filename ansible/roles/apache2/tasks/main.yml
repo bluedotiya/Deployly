@@ -1,0 +1,16 @@
+- name: Verify apache2 is installed & installs it if not
+  ansible.builtin.apt:
+    name: apache2
+    state: present
+
+- name: Verify apache2 is running & start it if not
+  ansible.builtin.systemd_service:
+    name: apache2
+    state: started
+    enabled: yes
+
+- name: Verify apache2 is listening on port 80 & probe for it
+  ansible.builtin.wait_for:
+    host: localhost
+    port: "{{ default_listen_port }}"
+
