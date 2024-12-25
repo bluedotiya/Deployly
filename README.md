@@ -1,10 +1,15 @@
-# Deployly
+# Deployly 
 
 <img src="./assets/logo.png" alt="Deployly" width="300" height="200">
 
 **"The app that ups the apps!"**
 
 Deployly is a mock platform built to demonstrate Secure CI/CD workflows.
+
+![Unit Test](https://github.com/bluedotiya/Deployly/actions/workflows/tf-unit-tests.yml/badge.svg)
+![CD Deploy](https://github.com/bluedotiya/Deployly/actions/workflows/tf-plan-apply.yml/badge.svg)
+
+
 
 ---
 
